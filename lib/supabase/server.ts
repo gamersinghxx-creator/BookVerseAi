@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, supabaseAuthEnabled } from "./env";
@@ -26,9 +26,10 @@ export async function getSupabaseServer(): Promise<SupabaseClient | null> {
             cookieStore.set(name, value, options)
           );
         } catch {
-          // Invoked from a Server Component — middleware handles the refresh.
+          // Invoked from a Server Component â€” middleware handles the refresh.
         }
       },
     },
   });
 }
+
