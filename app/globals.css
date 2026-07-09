@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-grotesk: "Space Grotesk", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  --paper: #fbf6ee;
+  --ink: #211a18;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Hide the native cursor on fine-pointer devices; a custom glow replaces it. */
+@media (pointer: fine) {
+  body.has-custom-cursor,
+  body.has-custom-cursor * {
+    cursor: none;
+  }
+}
+
+@layer components {
+  .u-container {
+    @apply mx-auto w-full max-w-6xl px-5 md:px-8;
+  }
+
+  /* Frosted warm-glass surface. */
+  .glass {
+    background: rgba(255, 253, 249, 0.55);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    border: 1px solid rgba(33, 26, 24, 0.08);
+  }
+  .card {
+    @apply glass rounded-[26px];
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.7) inset,
+      0 24px 60px -30px rgba(33, 26, 24, 0.35);
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-grotesk text-sm font-semibold tracking-tight transition-transform duration-200;
+  }
+  .btn-primary {
+    @apply btn text-white;
+    background: linear-gradient(120deg, #ff2e55, #ff6e88);
+    box-shadow: 0 14px 30px -12px rgba(255, 46, 85, 0.6);
+  }
+  .btn-primary:hover { transform: translateY(-2px) scale(1.02); }
+  .btn-primary:active { transform: translateY(0) scale(0.98); }
+  .btn-ghost {
+    @apply btn text-ink;
+    background: rgba(255, 253, 249, 0.6);
+    border: 1px solid rgba(33, 26, 24, 0.12);
+  }
+  .btn-ghost:hover { transform: translateY(-2px); background: rgba(255,253,249,0.9); }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-grotesk text-xs font-medium;
+    background: rgba(33, 26, 24, 0.05);
+    border: 1px solid rgba(33, 26, 24, 0.08);
+    color: #5b4f49;
+  }
+
+  .eyebrow {
+    @apply font-grotesk text-xs font-semibold uppercase tracking-[0.28em];
+    color: #8a7c74;
+  }
+
+  .display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+
+  /* Ink-gradient text for accents. */
+  .ink-gradient {
+    background: linear-gradient(100deg, #0a63c4 0%, #7a5cff 34%, #ff2e55 66%, #c9821a 100%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 10s linear infinite;
+  }
+
+  /* Thin colored underline that draws on reveal. */
+  .link-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 2px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.35s ease;
+  }
+  .link-underline:hover { background-size: 100% 2px; }
+}
+
+/* Paper grain + subtle color veil layered behind content. */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Custom cursor glow. */
+.cursor-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  height: 26px;
+  width: 26px;
+  border-radius: 999px;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  background: radial-gradient(circle, rgba(255, 46, 85, 0.55), rgba(46, 155, 255, 0.35) 55%, transparent 70%);
+  transform: translate(-50%, -50%);
+  transition: width 0.2s ease, height 0.2s ease, opacity 0.3s ease;
+}
+
+::selection {
+  background: rgba(46, 155, 255, 0.25);
+  color: #211a18;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(33, 26, 24, 0.18);
+  border-radius: 999px;
+  border: 3px solid var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .cursor-glow { display: none; }
+}

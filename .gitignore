@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+.DS_Store
+*.log
+.env*.local
+.vercel
+next-env.d.ts
+
+# AI-generated book cache (generated at runtime)
+.bookverse-cache
