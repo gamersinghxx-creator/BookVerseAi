@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 // Refreshes the Supabase auth session on every request so Server Components see
 // a fresh user. When auth is not configured (no public URL / anon key), the
@@ -21,7 +21,9 @@ export async function middleware(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(
+        cookiesToSet: { name: string; value: string; options?: CookieOptions }[]
+      ) {
         cookiesToSet.forEach(({ name, value }) =>
           request.cookies.set(name, value)
         );
