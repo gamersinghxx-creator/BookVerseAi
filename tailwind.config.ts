@@ -29,7 +29,7 @@ const config: Config = {
         // Living inks. `ink` = dark enough for text on paper; `soft` = tints.
         sky: { DEFAULT: "#2E9BFF", ink: "#0A63C4", soft: "#8FCBFF" },
         crimson: { DEFAULT: "#FF2E55", ink: "#CE1236", soft: "#FF8298" },
-        leaf: { DEFAULT: "#2ECB7C", ink: "#0E8A50", soft: "#88E6B4" },
+        leaf: { DEFAULT: "#2ECB7C", ink: "#0C7A46", soft: "#88E6B4" },
         amber: { DEFAULT: "#FFB13D", ink: "#B87714", soft: "#FFD189" },
         iris: { DEFAULT: "#7A5CFF", ink: "#5033C9", soft: "#BBAAFF" },
       },

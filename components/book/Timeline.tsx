@@ -14,13 +14,13 @@ export function Timeline({
 }) {
   if (events.length === 0) return null;
   return (
-    <ol className="relative pl-8">
+    <div className="relative pl-8">
       <div
         aria-hidden
         className="absolute bottom-2 left-2.5 top-2 w-px"
         style={{ background: `linear-gradient(to bottom, rgba(${accentRgb},0.7), rgba(${accentRgb},0))` }}
       />
-      <div className="flex flex-col gap-7">
+      <ol className="flex flex-col gap-7">
         {events.map((e, i) => (
           <motion.li
             key={i}
@@ -36,11 +36,11 @@ export function Timeline({
               style={{ background: `rgb(${accentRgb})`, boxShadow: `0 0 0 4px rgba(${accentRgb},0.18)` }}
             />
             <Pill className="mb-1.5">{e.label}</Pill>
-            <h4 className="display text-h3 font-bold text-ink">{e.title}</h4>
+            <h3 className="display text-h3 font-bold text-ink">{e.title}</h3>
             <p className="mt-0.5 text-body-sm text-ink-soft">{e.detail}</p>
           </motion.li>
         ))}
-      </div>
-    </ol>
+      </ol>
+    </div>
   );
 }

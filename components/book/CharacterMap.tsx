@@ -47,7 +47,7 @@ export function CharacterMap({
 
       {selected && (
         <Card key={selected.name} className="p-6">
-          <h4 className="display text-h3 font-bold text-ink">{selected.name}</h4>
+          <h3 className="display text-h3 font-bold text-ink">{selected.name}</h3>
           <Pill className="mt-2">{selected.role}</Pill>
           <p className="mt-3 text-body-sm text-ink-soft">{selected.description}</p>
 
