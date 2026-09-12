@@ -2,29 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design tokens (mirror of tailwind.config.ts) ─────────────────────────
+   Fonts come from next/font via classNames on <html> (--font-display, etc.). */
 :root {
-  --font-display: "Fraunces", Georgia, serif;
-  --font-grotesk: "Space Grotesk", system-ui, sans-serif;
-  --font-sans: "Inter", system-ui, sans-serif;
-
   --paper: #fbf6ee;
+  --paper-soft: #f5ece0;
+  --paper-deep: #ede1d2;
   --ink: #211a18;
+  --ink-soft: #544842;
+  --ink-faint: #6b5c54;
+  --ink-hush: #8a7c74;
+
+  --sky: #2e9bff;
+  --crimson: #ff2e55;
+  --leaf: #2ecb7c;
+  --amber: #ffb13d;
+  --iris: #7a5cff;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 160ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
 }
 
-* {
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
 
-html {
-  scroll-behavior: smooth;
-}
+  html {
+    scroll-behavior: smooth;
+  }
 
-body {
-  background-color: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  overflow-x: hidden;
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans), Inter, system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* One consistent keyboard focus treatment everywhere. */
+  :focus-visible {
+    outline: 2px solid var(--sky);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: rgba(46, 155, 255, 0.25);
+    color: var(--ink);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(33, 26, 24, 0.18);
+    border-radius: 999px;
+    border: 3px solid var(--paper);
+  }
 }
 
 /* Hide the native cursor on fine-pointer devices; a custom glow replaces it. */
@@ -37,7 +78,7 @@ body {
 
 @layer components {
   .u-container {
-    @apply mx-auto w-full max-w-6xl px-5 md:px-8;
+    @apply mx-auto w-full max-w-shell px-gutter;
   }
 
   /* Frosted warm-glass surface. */
@@ -48,43 +89,45 @@ body {
     border: 1px solid rgba(33, 26, 24, 0.08);
   }
   .card {
-    @apply glass rounded-[26px];
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.7) inset,
-      0 24px 60px -30px rgba(33, 26, 24, 0.35);
+    @apply glass rounded-card shadow-card;
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-grotesk text-sm font-semibold tracking-tight transition-transform duration-200;
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-grotesk text-label font-semibold transition-transform duration-fast ease-out-expo;
   }
   .btn-primary {
     @apply btn text-white;
     background: linear-gradient(120deg, #ff2e55, #ff6e88);
     box-shadow: 0 14px 30px -12px rgba(255, 46, 85, 0.6);
   }
-  .btn-primary:hover { transform: translateY(-2px) scale(1.02); }
-  .btn-primary:active { transform: translateY(0) scale(0.98); }
+  .btn-primary:hover {
+    transform: translateY(-2px) scale(1.02);
+  }
+  .btn-primary:active {
+    transform: translateY(0) scale(0.98);
+  }
   .btn-ghost {
     @apply btn text-ink;
     background: rgba(255, 253, 249, 0.6);
     border: 1px solid rgba(33, 26, 24, 0.12);
   }
-  .btn-ghost:hover { transform: translateY(-2px); background: rgba(255,253,249,0.9); }
+  .btn-ghost:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 253, 249, 0.9);
+  }
 
   .pill {
-    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-grotesk text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-grotesk text-xs font-medium text-ink-faint;
     background: rgba(33, 26, 24, 0.05);
     border: 1px solid rgba(33, 26, 24, 0.08);
-    color: #5b4f49;
   }
 
   .eyebrow {
-    @apply font-grotesk text-xs font-semibold uppercase tracking-[0.28em];
-    color: #8a7c74;
+    @apply font-grotesk text-eyebrow font-semibold uppercase text-ink-faint;
   }
 
   .display {
-    font-family: var(--font-display);
+    font-family: var(--font-display), Fraunces, Georgia, serif;
     font-optical-sizing: auto;
     letter-spacing: -0.02em;
     line-height: 0.95;
@@ -92,7 +135,7 @@ body {
 
   /* Ink-gradient text for accents. */
   .ink-gradient {
-    background: linear-gradient(100deg, #0a63c4 0%, #7a5cff 34%, #ff2e55 66%, #c9821a 100%);
+    background: linear-gradient(100deg, #0a63c4 0%, #7a5cff 34%, #ff2e55 66%, #b87714 100%);
     background-size: 220% 100%;
     -webkit-background-clip: text;
     background-clip: text;
@@ -100,15 +143,18 @@ body {
     animation: shimmer 10s linear infinite;
   }
 
-  /* Thin colored underline that draws on reveal. */
+  /* Thin colored underline that draws on hover/focus. */
   .link-underline {
     background-image: linear-gradient(currentColor, currentColor);
     background-size: 0% 2px;
     background-position: 0 100%;
     background-repeat: no-repeat;
-    transition: background-size 0.35s ease;
+    transition: background-size var(--dur-base) ease;
   }
-  .link-underline:hover { background-size: 100% 2px; }
+  .link-underline:hover,
+  .link-underline:focus-visible {
+    background-size: 100% 2px;
+  }
 }
 
 /* Paper grain + subtle color veil layered behind content. */
@@ -138,19 +184,6 @@ body {
   transition: width 0.2s ease, height 0.2s ease, opacity 0.3s ease;
 }
 
-::selection {
-  background: rgba(46, 155, 255, 0.25);
-  color: #211a18;
-}
-
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: rgba(33, 26, 24, 0.18);
-  border-radius: 999px;
-  border: 3px solid var(--paper);
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -160,5 +193,13 @@ body {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
-  .cursor-glow { display: none; }
+  .cursor-glow {
+    display: none;
+  }
+  /* The custom-cursor component bails under reduced motion, but guard here too
+     so the native cursor is never hidden without a replacement. */
+  body.has-custom-cursor,
+  body.has-custom-cursor * {
+    cursor: auto !important;
+  }
 }

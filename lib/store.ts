@@ -2,19 +2,31 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { Book } from "./types";
 import { books as seedBooks, getBook as getSeedBook } from "./books";
-import { dbAvailable, dbGet, dbUpsert, dbAll, dbGenerated } from "./db";
-import { supaCacheEnabled, supaGet, supaUpsert, supaGenerated } from "./store.supabase";
+import { dbAvailable, dbGet, dbUpsert, dbGenerated, dbDelete } from "./db";
+import {
+  supaCacheEnabled,
+  supaGet,
+  supaUpsert,
+  supaGenerated,
+  supaDelete,
+} from "./store.supabase";
+import { attempt } from "./resilience";
+import { searchBooks } from "./search";
 
 // Server-side book store. Selection order for the generated-book cache:
 //   1. Supabase / Postgres — when SUPABASE_SERVICE_ROLE_KEY is set (hosted prod)
 //   2. Embedded SQLite     — lib/db.ts (Node 22+ local / persistent-disk hosts)
 //   3. JSON file cache     — universal fallback
-// Either way it unifies the curated seed library and AI-generated books into
-// one dynamic source, implementing "generate once, serve forever". The curated
-// seed library lives in code (lib/books.ts); in the Supabase and file paths it
-// is merged in here rather than stored inside the cache.
+//
+// The Supabase path is wrapped in `attempt()` (timeout + circuit breaker): if it
+// is slow or unreachable, the call degrades to SQLite/file within ~2.5s once and
+// then short-circuits for a cooldown window — a dead hosted DB never hangs the
+// app. The curated seed library always lives in code (lib/books.ts) and is
+// merged in here so seed books resolve instantly regardless of backend health.
 
 const CACHE_DIR = path.join(process.cwd(), ".bookverse-cache");
+const SUPA_CIRCUIT = "supabase";
+const SUPA_TIMEOUT_MS = 3000;
 
 export function slugify(title: string): string {
   return title
@@ -24,6 +36,14 @@ export function slugify(title: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+// Attempt a Supabase operation under the shared circuit breaker. Returns
+// `{ ok: true, value }` or `{ ok: false }` (caller then uses the local path).
+async function trySupa<T>(fn: () => Promise<T>) {
+  if (!supaCacheEnabled()) return { ok: false as const };
+  const r = await attempt(SUPA_CIRCUIT, SUPA_TIMEOUT_MS, fn);
+  return r.ok ? ({ ok: true as const, value: r.value as T }) : { ok: false as const };
 }
 
 // ---- file fallback helpers -------------------------------------------------
@@ -45,6 +65,14 @@ async function fileSave(book: Book) {
   await ensureDir();
   await fs.writeFile(cacheFile(book.slug), JSON.stringify(book, null, 2), "utf-8");
 }
+async function fileDelete(slug: string): Promise<boolean> {
+  try {
+    await fs.unlink(cacheFile(slug));
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function fileGeneratedFull(): Promise<Book[]> {
   try {
     const files = await fs.readdir(CACHE_DIR);
@@ -60,19 +88,24 @@ async function fileGeneratedFull(): Promise<Book[]> {
   }
 }
 
+// Merge code seed library (canonical) with a list of generated books, seeds first.
+function mergeWithSeeds(generated: Book[]): Book[] {
+  const seen = new Set(seedBooks.map((b) => b.slug));
+  return [...seedBooks, ...generated.filter((b) => !seen.has(b.slug))];
+}
+
 // ---- public API ------------------------------------------------------------
 
 export async function getGeneratedBook(slug: string): Promise<Book | null> {
-  if (supaCacheEnabled()) return supaGet(slug);
+  const supa = await trySupa(() => supaGet(slug));
+  if (supa.ok) return supa.value;
   if (await dbAvailable()) return dbGet(slug);
   return fileGet(slug);
 }
 
 export async function saveGeneratedBook(book: Book): Promise<void> {
-  if (supaCacheEnabled()) {
-    await supaUpsert(book);
-    return;
-  }
+  const supa = await trySupa(() => supaUpsert(book));
+  if (supa.ok) return;
   if (await dbAvailable()) {
     await dbUpsert(book, "generated");
     return;
@@ -80,11 +113,11 @@ export async function saveGeneratedBook(book: Book): Promise<void> {
   await fileSave(book);
 }
 
-// Seed library first (canonical), then the generated cache.
+// Seed library first (canonical + always instant), then the generated cache.
 export async function getBookBySlug(slug: string): Promise<Book | null> {
-  if (supaCacheEnabled()) return getSeedBook(slug) ?? (await supaGet(slug));
-  if (await dbAvailable()) return dbGet(slug);
-  return getSeedBook(slug) ?? (await fileGet(slug));
+  const seed = getSeedBook(slug);
+  if (seed) return seed;
+  return getGeneratedBook(slug);
 }
 
 export async function hasBook(slug: string): Promise<boolean> {
@@ -96,6 +129,22 @@ export function seedSlugs(): string[] {
   return seedBooks.map((b) => b.slug);
 }
 
+const seedSlugSet = new Set(seedBooks.map((b) => b.slug));
+export function isSeedSlug(slug: string): boolean {
+  return seedSlugSet.has(slug);
+}
+
+// Remove a generated book from every backend. Seed books are never deletable.
+export async function deleteGeneratedBook(slug: string): Promise<boolean> {
+  if (isSeedSlug(slug)) return false;
+  let removed = false;
+  const supa = await trySupa(() => supaDelete(slug));
+  if (supa.ok) removed = supa.value;
+  if (await dbAvailable()) removed = (await dbDelete(slug)) || removed;
+  removed = (await fileDelete(slug)) || removed;
+  return removed;
+}
+
 export interface BookSummary {
   slug: string;
   title: string;
@@ -104,7 +153,6 @@ export interface BookSummary {
   tagline: string;
   emoji: string;
   cached: boolean;
-  createdAt: number;
 }
 
 function toSummary(b: Book): BookSummary {
@@ -116,39 +164,27 @@ function toSummary(b: Book): BookSummary {
     tagline: b.tagline,
     emoji: b.cover.emoji,
     cached: b.cached,
-    createdAt: 0,
   };
 }
 
-// AI-generated books (newest first).
+// AI-generated books (newest first per the active backend's ordering).
 export async function listGeneratedBooks(): Promise<BookSummary[]> {
-  if (supaCacheEnabled()) return (await supaGenerated()).map(toSummary);
+  const supa = await trySupa(() => supaGenerated());
+  if (supa.ok) return supa.value.map(toSummary);
   if (await dbAvailable()) return (await dbGenerated()).map(toSummary);
-  const files = await fileGeneratedFull();
-  return files.map(toSummary);
+  return (await fileGeneratedFull()).map(toSummary);
 }
 
 // Every book (seed + generated), seeds first.
 export async function listAllBooks(): Promise<Book[]> {
-  if (supaCacheEnabled()) {
-    const generated = await supaGenerated();
-    const seedSet = new Set(seedBooks.map((b) => b.slug));
-    return [...seedBooks, ...generated.filter((b) => !seedSet.has(b.slug))];
-  }
-  if (await dbAvailable()) return dbAll();
-  const generated = await fileGeneratedFull();
-  const seedSet = new Set(seedBooks.map((b) => b.slug));
-  return [...seedBooks, ...generated.filter((b) => !seedSet.has(b.slug))];
+  const supa = await trySupa(() => supaGenerated());
+  if (supa.ok) return mergeWithSeeds(supa.value);
+  if (await dbAvailable()) return mergeWithSeeds(await dbGenerated());
+  return mergeWithSeeds(await fileGeneratedFull());
 }
 
-// Dynamic search across the whole library.
-export async function searchAllBooks(query: string): Promise<Book[]> {
-  const all = await listAllBooks();
-  const q = query.trim().toLowerCase();
-  if (!q) return all;
-  return all.filter((b) =>
-    [b.title, b.author, b.category, ...b.tags].some((f) =>
-      f.toLowerCase().includes(q)
-    )
-  );
+// Ranked search across the whole library (seed + generated). Empty query
+// returns everything, seeds first.
+export async function searchAllBooks(query: string, limit?: number): Promise<Book[]> {
+  return searchBooks(await listAllBooks(), query, limit);
 }

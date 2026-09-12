@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { ACCENTS } from "@/lib/accents";
+import { fadeUp, revealViewport } from "@/lib/motion";
 
 interface Summary {
   slug: string;
@@ -15,8 +16,8 @@ interface Summary {
   emoji: string;
 }
 
-// Shows AI-generated books from the server cache so a summoned book is never a
-// dead end. Renders nothing until at least one exists.
+// AI-generated books from the server cache, so a summoned book is never a dead
+// end. Renders nothing until at least one exists.
 export function RecentlySummoned() {
   const [items, setItems] = useState<Summary[]>([]);
 
@@ -38,10 +39,8 @@ export function RecentlySummoned() {
   return (
     <section className="u-container py-16">
       <div className="mb-8 flex items-center gap-2.5">
-        <Sparkles size={18} className="text-crimson-ink" />
-        <h2 className="display text-2xl font-bold text-ink md:text-3xl">
-          Recently summoned
-        </h2>
+        <Sparkles size={18} className="text-crimson-ink" aria-hidden />
+        <h2 className="display text-h3 font-bold text-ink md:text-h2">Recently summoned</h2>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((b, i) => {
@@ -49,13 +48,18 @@ export function RecentlySummoned() {
           return (
             <motion.div
               key={b.slug}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: (i % 3) * 0.06 }}
+              variants={fadeUp}
+              custom={i % 3}
+              initial="hidden"
+              whileInView="show"
+              viewport={revealViewport}
             >
-              <Link href={`/book/${b.slug}`} className="card flex items-center gap-4 p-4 transition-transform hover:-translate-y-1">
+              <Link
+                href={`/book/${b.slug}`}
+                className="card flex items-center gap-4 p-4 transition-transform duration-fast ease-out-expo hover:-translate-y-1"
+              >
                 <span
+                  aria-hidden
                   className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-3xl"
                   style={{ background: `radial-gradient(circle at 50% 40%, rgba(${a.rgb},0.28), rgba(255,255,255,0.4))` }}
                 >
@@ -63,7 +67,7 @@ export function RecentlySummoned() {
                 </span>
                 <div className="min-w-0">
                   <h3 className="truncate font-grotesk font-semibold text-ink">{b.title}</h3>
-                  <p className="truncate text-sm text-ink-soft">{b.tagline}</p>
+                  <p className="truncate text-body-sm text-ink-soft">{b.tagline}</p>
                 </div>
               </Link>
             </motion.div>

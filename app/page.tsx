@@ -1,6 +1,8 @@
 import { Hero } from "@/components/Hero";
 import { Library } from "@/components/Library";
+import { RecentlySummoned } from "@/components/RecentlySummoned";
 import { Story } from "@/components/Story";
+import { ClosingCta } from "@/components/home/ClosingCta";
 import { listAllBooks } from "@/lib/store";
 
 // Rendered per request so the library reflects the live database, including
@@ -14,6 +16,8 @@ export default async function HomePage() {
       <Hero />
       <Library books={books} />
       <Story />
+      <RecentlySummoned />
+      <ClosingCta />
     </>
   );
 }

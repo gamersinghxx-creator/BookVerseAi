@@ -36,9 +36,9 @@ export interface MindMapNode {
 
 export interface Sketch {
   caption: string;
-  // A simple emoji/gradient placeholder stands in for AI-generated art.
+  // A simple emoji placeholder stands in for AI-generated art. The card's colour
+  // comes from the page accent system (see components/book/Sketches.tsx).
   emoji: string;
-  tone: string; // tailwind gradient class fragment, e.g. "from-plum-500 to-gold-500"
 }
 
 export interface Book {
@@ -48,7 +48,7 @@ export interface Book {
   year: string;
   category: "fiction" | "non-fiction";
   tags: string[];
-  cover: { emoji: string; tone: string };
+  cover: { emoji: string };
   tagline: string;
   readingTime: string;   // e.g. "12 min read"
   rating: number;        // 0-5

@@ -7,11 +7,12 @@ interface Status {
   available: boolean;
   model: string;
   modelReady: boolean;
+  verified: boolean;
 }
 
 // Small live badge showing which AI backend is active (Ollama or a hosted
 // provider like Groq / Gemini). Polls the health endpoint so the dot reflects
-// the current state.
+// the real state — green only when the configured model is confirmed usable.
 export function AIStatus() {
   const [s, setS] = useState<Status | null>(null);
 
@@ -35,18 +36,27 @@ export function AIStatus() {
   const isOllama = s.provider === "ollama";
   const live = s.available && s.modelReady;
   const color = live ? "#2ECB7C" : s.available ? "#FFB13D" : "#8A7C74";
-  const label = live
-    ? `AI live · ${s.model.split(":")[0]}`
-    : s.available
-      ? "Model not pulled"
-      : "Preview mode";
-  const title = live
-    ? `Connected to ${s.provider} (${s.model})`
-    : s.available
-      ? `Ollama is running but "${s.model}" isn't pulled. Run: ollama pull ${s.model}`
-      : isOllama
-        ? "Ollama not detected - using offline preview. Start Ollama for real AI."
-        : "No AI provider configured - using offline preview. Set AI_PROVIDER + an API key.";
+  const shortModel = s.model.split("/").pop()?.split(":")[0] ?? s.model;
+
+  let label: string;
+  let title: string;
+  if (live) {
+    label = `AI live · ${shortModel}`;
+    title = s.verified
+      ? `Connected to ${s.provider} (${s.model})`
+      : `Connected to ${s.provider} (${s.model}) — model not independently verified`;
+  } else if (s.available && isOllama) {
+    label = "Model not pulled";
+    title = `Ollama is running but "${s.model}" isn't pulled. Run: ollama pull ${s.model}`;
+  } else if (s.available) {
+    label = "Model unavailable";
+    title = `${s.provider} is configured but the model "${s.model}" is not in your account's model list. Set a valid model via env (e.g. GROQ_MODEL).`;
+  } else {
+    label = "Preview mode";
+    title = isOllama
+      ? "Ollama not detected — using offline preview. Start Ollama for real AI."
+      : "No AI provider configured — using offline preview. Set AI_PROVIDER + an API key.";
+  }
 
   return (
     <span

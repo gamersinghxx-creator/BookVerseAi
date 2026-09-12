@@ -1,66 +1,43 @@
-# BookVerse AI - Backend, Persistence, Auth & Images (setup guide)
+# BookVerse AI — Backend, Persistence, Auth & Images (setup guide)
 
-These are the environment-dependent pieces: they need your database, keys, or
-GPU/model to actually run, so they are documented here as drop-in scaffolds
-with setup steps rather than shipped as pre-wired code. The web app already
-works end to end without any of them (file cache + Ollama/mock).
+The Supabase pieces (Postgres cache + Auth + synced shelf) are **already wired**
+and env-gated — this section explains how they work and how to point them at your
+own project. The image pipeline (§3) and the optional .NET backend (§2) are
+scaffolds. The app runs end to end without any of them (SQLite / file cache +
+mock or Ollama).
 
-The single seam for all persistence is `lib/store.ts`. Everything below swaps
-its implementation without touching the UI.
-
----
-
-## 1. Postgres / Supabase cache (replace the file cache)
-
-Today generated books are JSON files in `.bookverse-cache/`. To persist in
-Postgres (e.g. Supabase), keep the same `getBookBySlug` / `saveGeneratedBook`
-signatures and change the body.
-
-Schema:
-
-```sql
-create table books (
-  slug text primary key,
-  data jsonb not null,          -- the full Book object
-  created_at timestamptz default now()
-);
-```
-
-Adapter (`lib/store.supabase.ts`):
-
-```ts
-import { createClient } from "@supabase/supabase-js";
-import type { Book } from "./types";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-export async function getGeneratedBook(slug: string): Promise<Book | null> {
-  const { data } = await supabase.from("books").select("data").eq("slug", slug).single();
-  return (data?.data as Book) ?? null;
-}
-export async function saveGeneratedBook(book: Book) {
-  await supabase.from("books").upsert({ slug: book.slug, data: book });
-}
-export async function listGeneratedBooks() {
-  const { data } = await supabase
-    .from("books").select("slug,data,created_at").order("created_at", { ascending: false });
-  return (data ?? []).map((r) => ({ ...toSummary(r.data), createdAt: +new Date(r.created_at) }));
-}
-```
-
-Steps: `npm i @supabase/supabase-js`, create the table, set `SUPABASE_URL` +
-`SUPABASE_SERVICE_ROLE_KEY` in `.env.local`, then have `lib/store.ts` delegate
-to the Supabase adapter when those envs are present (else fall back to files).
+The single seam for all persistence is `lib/store.ts`. See `docs/ARCHITECTURE.md`.
 
 ---
 
-## 2. .NET 9 Web API (the report's target backend)
+## 1. Postgres / Supabase cache — already implemented
 
-If you want the AI + persistence behind a separate service (per the project
-report), expose endpoints returning the exact `Book` shape from `lib/types.ts`.
+`lib/store.ts` selects, in order: **Supabase** (when `SUPABASE_SERVICE_ROLE_KEY`
+is set) → **embedded SQLite** (`node:sqlite`) → **per-slug JSON files**. The
+Supabase path is wrapped in `attempt()` (`lib/resilience.ts`): each call aborts
+after 2.5–3s and a process-global circuit breaker opens after two failures, so a
+paused or unreachable Supabase degrades to SQLite instantly instead of hanging.
+
+- Adapter: `lib/store.supabase.ts` — each function aborts via
+  `AbortSignal.timeout` and **throws** on error so `attempt()` sees the failure.
+- Schema: `supabase/schema.sql` (the `books` table plus flat columns for cheap
+  listing; RLS on, no policies → service-role only).
+- Seed books are **not** stored in Postgres — they live in `lib/books.ts` and are
+  merged in by `lib/store.ts`, so there's no seeding migration.
+
+**To use your own project:** create a Supabase project, run `supabase/schema.sql`
+in the SQL editor, and set `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
+Remove them and the app is back on SQLite — no code change.
+
+---
+
+## 2. .NET 9 Web API (optional alternative backend)
+
+The Next.js API routes **are** the backend and are production-ready. This section
+is only for teams that specifically want the AI + persistence behind a separate
+.NET service. Expose endpoints returning the exact `Book` shape from
+`lib/types.ts`.
 
 Endpoints:
 
@@ -114,9 +91,11 @@ specifically want the .NET service; otherwise the Next routes are production-rea
 
 ## 3. Real image generation for sketches (SDXL / FLUX / ComfyUI)
 
-Sketches are currently gradient + emoji placeholders. To paint real concept art:
+Sketches are currently gradient + emoji placeholders (`components/book/Sketches.tsx`).
+To paint real concept art:
 
-1. Add `imageUrl?: string` to the `Sketch` type in `lib/types.ts`.
+1. Add `imageUrl?: string` to the `Sketch` type in `lib/types.ts` **and** to the
+   `RawSketch` schema in `lib/schemas.ts` so generated books can carry it.
 2. Add an adapter `lib/ai/images.ts`:
 
 ```ts
@@ -143,57 +122,39 @@ Keep it cache-first (images stored with the book) to preserve near-zero cost.
 
 ---
 
-## 4. Authentication + per-user shelves
+## 4. Authentication + synced shelves — already implemented
 
-Today "My Shelf" is local (browser `localStorage`) - instant, no account. To add
-real accounts and sync shelves across devices:
+Magic-link email + optional Google OAuth via **Supabase Auth**, env-gated on
+`NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
-Recommended: **Supabase Auth** (pairs with the Postgres cache above).
+- `components/AuthButton.tsx` in the nav (renders nothing until the env vars are set).
+- `proxy.ts` refreshes the session on every request, time-boxed to 2s.
+- `app/auth/callback/route.ts` exchanges the code for a session.
+- Clients: `lib/supabase/{client,server,admin}.ts`.
+- `lib/shelf.ts` keeps the identical `useShelf()` API but reads/writes the
+  per-user `shelves` table (RLS-protected) when signed in, `localStorage` when
+  signed out. Local bookmarks merge into the account once on first sign-in.
+- `shelves` table + RLS policies are in `supabase/schema.sql`.
 
-1. `npm i @supabase/supabase-js @supabase/ssr`
-2. Enable email/OAuth providers in the Supabase dashboard.
-3. Add a `shelves` table:
-
-```sql
-create table shelves (
-  user_id uuid references auth.users(id),
-  slug text,
-  data jsonb,
-  primary key (user_id, slug)
-);
-alter table shelves enable row level security;
-create policy "own rows" on shelves
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
-```
-
-4. Wrap the app in a Supabase provider, add a sign-in button in `Nav.tsx`.
-5. Upgrade `lib/shelf.ts`: when signed in, read/write `shelves` via Supabase;
-   when signed out, keep using `localStorage`. On sign-in, merge the local
-   shelf into the account (one-time migration).
-
-The `useShelf()` hook is the only integration point - its `{ items, has, toggle,
-remove }` API stays identical, so no components change.
+**To use your own project:** in the Supabase dashboard enable the Email provider
+(and Google if wanted), set the redirect URLs to `<site>/auth/callback`, and add
+the three env vars. See `DEPLOY.md §3`.
 
 ---
 
 ## Summary of env variables
 
+See `.env.example` for the authoritative list. Persistence + auth need:
+
 ```
-# AI (already used)
-AI_PROVIDER=ollama
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=llama3.2
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...            # public
+SUPABASE_SERVICE_ROLE_KEY=eyJ...                # SECRET — server only
+```
 
-# Site
-NEXT_PUBLIC_SITE_URL=https://your-domain
+Optional pieces from this doc:
 
-# Persistence (optional)
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
-
-# .NET backend (optional)
-NEXT_PUBLIC_API_URL=http://localhost:5080
-
-# Images (optional)
-IMAGE_API_URL=http://127.0.0.1:8188
+```
+IMAGE_API_URL=http://127.0.0.1:8188            # §3 image generation
+NEXT_PUBLIC_API_URL=http://localhost:5080       # §2 optional .NET backend
 ```

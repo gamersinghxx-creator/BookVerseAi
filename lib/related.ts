@@ -1,20 +1,21 @@
 import type { Book } from "./types";
-import { books } from "./books";
 
-// Simple content-based recommendations over the seed library: books that
-// share tags (and category) with the current one, most-overlapping first.
+// Content-based recommendations: from `pool`, the books that share the most tags
+// (and category) with `current`. The pool is passed in so callers can include
+// AI-generated books, not just the seed library.
 export function relatedBooks(
   current: { slug: string; category: string; tags: string[] },
-  limit = 3
+  pool: Book[],
+  limit = 3,
 ): Book[] {
-  return books
+  return pool
     .filter((b) => b.slug !== current.slug)
     .map((b) => {
       const shared = b.tags.filter((t) => current.tags.includes(t)).length;
-      const sameCat = b.category === current.category ? 1 : 0;
-      return { b, score: shared * 2 + sameCat };
+      const sameCategory = b.category === current.category ? 1 : 0;
+      return { book: b, score: shared * 2 + sameCategory };
     })
-    .sort((x, y) => y.score - x.score)
+    .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-    .map((x) => x.b);
+    .map((x) => x.book);
 }

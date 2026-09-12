@@ -3,8 +3,12 @@ import {
   getProvider,
   buildTutorMessages,
   mockTutorAnswer,
-  type ChatMessage,
 } from "@/lib/ai";
+import { route, parseJson, notFound } from "@/lib/http";
+import { LIMITS } from "@/lib/rate-limit";
+import { ChatInput } from "@/lib/schemas";
+import { errMeta } from "@/lib/log";
+import { track } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,21 +30,15 @@ function streamText(text: string): ReadableStream {
   });
 }
 
-export async function POST(req: Request) {
-  let body: { slug?: string; messages?: ChatMessage[] };
-  try {
-    body = await req.json();
-  } catch {
-    return new Response("Invalid JSON", { status: 400 });
-  }
+export const POST = route("chat", { limit: LIMITS.chat }, async (req, ctx) => {
+  const { slug, messages } = await parseJson(req, ChatInput);
 
-  const slug = body.slug ?? "";
-  const history = Array.isArray(body.messages) ? body.messages : [];
   const book = await getBookBySlug(slug);
-  if (!book) return new Response("Book not found", { status: 404 });
+  if (!book) throw notFound("No book matches that slug");
+  track("tutor.ask", { slug, turns: messages.length });
 
   const lastUser =
-    [...history].reverse().find((m) => m.role === "user")?.content ?? "";
+    [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
 
   const provider = await getProvider();
 
@@ -50,24 +48,28 @@ export async function POST(req: Request) {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "X-AI-Provider": "mock",
+        "x-request-id": ctx.requestId,
       },
     });
   }
 
-  const messages = buildTutorMessages(book, history);
   const stream = new ReadableStream({
     async start(controller) {
+      let produced = 0;
       try {
-        for await (const chunk of provider.chatStream(messages, {
+        for await (const chunk of provider.chatStream(buildTutorMessages(book, messages), {
           temperature: 0.6,
         })) {
+          produced += chunk.length;
           controller.enqueue(encoder.encode(chunk));
         }
-      } catch {
-        // If the model errors mid-stream, degrade gracefully.
-        controller.enqueue(
-          encoder.encode(mockTutorAnswer(book, lastUser))
-        );
+      } catch (err) {
+        ctx.log.warn("chat.stream_failed", { slug, provider: provider.name, produced, ...errMeta(err) });
+        // If the model errors before producing anything, degrade to the grounded
+        // mock. If it already streamed text, end cleanly rather than contradict it.
+        if (produced === 0) {
+          controller.enqueue(encoder.encode(mockTutorAnswer(book, lastUser)));
+        }
       } finally {
         controller.close();
       }
@@ -78,6 +80,7 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "X-AI-Provider": provider.name,
+      "x-request-id": ctx.requestId,
     },
   });
-}
+});
