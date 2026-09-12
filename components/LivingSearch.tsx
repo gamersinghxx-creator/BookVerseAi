@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { track } from "@/lib/analytics";
 
 interface Suggestion {
   slug: string;
@@ -23,7 +24,13 @@ const STAGES = [
 // The living search: type a title and the field blooms with light. Suggestions
 // are fetched live from the database (seed + previously summoned books); a new
 // title is summoned via AI, wrapped in a full-screen cinematic experience.
-export function LivingSearch({ autoFocus = false }: { autoFocus?: boolean }) {
+export function LivingSearch({
+  autoFocus = false,
+  label = "Search or summon a book",
+}: {
+  autoFocus?: boolean;
+  label?: string;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<Suggestion[]>([]);
@@ -32,20 +39,28 @@ export function LivingSearch({ autoFocus = false }: { autoFocus?: boolean }) {
   const [stage, setStage] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const glow = Math.min(query.trim().length / 22, 1);
+  const trimmed = query.trim();
+  const glow = Math.min(trimmed.length / 22, 1);
+  // Suggestions are only meaningful for the current query; ignore stale results
+  // from a previous keystroke without needing to clear state in the effect.
+  const [matchesQuery, setMatchesQuery] = useState("");
+  const visibleMatches = trimmed && matchesQuery === trimmed ? matches : [];
 
   // Debounced live suggestions from the library API.
   useEffect(() => {
     const q = query.trim();
-    if (!q) {
-      setMatches([]);
-      return;
-    }
+    if (!q) return;
     const id = setTimeout(() => {
       fetch(`/api/library?q=${encodeURIComponent(q)}`)
         .then((r) => r.json())
-        .then((d) => setMatches(Array.isArray(d.books) ? d.books.slice(0, 4) : []))
-        .catch(() => setMatches([]));
+        .then((d) => {
+          setMatches(Array.isArray(d.books) ? d.books.slice(0, 4) : []);
+          setMatchesQuery(q);
+        })
+        .catch(() => {
+          setMatches([]);
+          setMatchesQuery(q);
+        });
     }, 180);
     return () => clearTimeout(id);
   }, [query]);
@@ -62,6 +77,7 @@ export function LivingSearch({ autoFocus = false }: { autoFocus?: boolean }) {
     setBusy(true);
     setStage(0);
     setError("");
+    track("summon", { title: t });
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -69,22 +85,36 @@ export function LivingSearch({ autoFocus = false }: { autoFocus?: boolean }) {
         body: JSON.stringify({ title: t }),
       });
       const data = await res.json();
-      if (!res.ok || !data.slug) throw new Error(data?.error ?? "Failed");
+      if (res.status === 429) {
+        const secs = data?.error?.details?.retryAfterSec ?? 60;
+        throw new Error(
+          `You've summoned a lot of books just now. Try again in about ${Math.ceil(secs / 60)} min.`,
+        );
+      }
+      if (!res.ok || !data.slug) {
+        throw new Error(data?.error?.message ?? "Couldn't summon that book.");
+      }
       router.push(`/book/${data.slug}`);
-    } catch {
-      setError("Couldn't summon that book. Make sure the app is running.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't summon that book.");
       setBusy(false);
     }
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const exact = matches.find(
-      (m) => m.title.toLowerCase() === query.trim().toLowerCase()
+    const exact = visibleMatches.find(
+      (m) => m.title.toLowerCase() === trimmed.toLowerCase()
     );
-    if (exact) router.push(`/book/${exact.slug}`);
-    else if (matches[0]) router.push(`/book/${matches[0].slug}`);
-    else summon(query);
+    if (exact) {
+      track("open_book", { slug: exact.slug, via: "search-exact" });
+      router.push(`/book/${exact.slug}`);
+    } else if (visibleMatches[0]) {
+      track("open_book", { slug: visibleMatches[0].slug, via: "search-first" });
+      router.push(`/book/${visibleMatches[0].slug}`);
+    } else {
+      summon(query);
+    }
   }
 
   return (
@@ -107,7 +137,7 @@ export function LivingSearch({ autoFocus = false }: { autoFocus?: boolean }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Name a book. Watch it come to light."
-            aria-label="Search or summon a book"
+            aria-label={label}
             className="w-full bg-transparent py-3 font-grotesk text-base text-ink outline-none placeholder:text-ink-faint"
           />
           <button
@@ -117,7 +147,7 @@ export function LivingSearch({ autoFocus = false }: { autoFocus?: boolean }) {
           >
             {busy ? (
               <Loader2 size={18} className="animate-spin" />
-            ) : matches[0] ? (
+            ) : visibleMatches[0] ? (
               <ArrowRight size={18} />
             ) : (
               <>
@@ -130,14 +160,14 @@ export function LivingSearch({ autoFocus = false }: { autoFocus?: boolean }) {
       </form>
 
       <AnimatePresence>
-        {matches.length > 0 && !busy && (
+        {visibleMatches.length > 0 && !busy && (
           <motion.div
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             className="mt-3 flex flex-wrap justify-center gap-2"
           >
-            {matches.map((b) => (
+            {visibleMatches.map((b) => (
               <button
                 key={b.slug}
                 onClick={() => router.push(`/book/${b.slug}`)}

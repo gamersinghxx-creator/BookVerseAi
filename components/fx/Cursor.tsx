@@ -8,7 +8,10 @@ export function Cursor() {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Skip on touch devices and when the user prefers reduced motion — in both
+    // cases the native cursor must stay visible (the glow would be hidden).
     if (window.matchMedia("(pointer: coarse)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const el = ref.current!;
     if (!el) return;
     document.body.classList.add("has-custom-cursor");

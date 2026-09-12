@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { LogIn, LogOut, Loader2, Mail, Check } from "lucide-react";
+import { LogIn, LogOut, Loader2, Mail, Check, UserRound } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { mergeLocalShelfIntoAccount } from "@/lib/shelf";
 
@@ -117,6 +118,14 @@ export function AuthButton() {
             <p className="truncate px-1 pb-2 font-grotesk text-xs text-ink-faint">
               {email}
             </p>
+            <Link
+              href="/account"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 font-grotesk text-sm text-ink-soft transition hover:bg-paper-deep hover:text-ink"
+            >
+              <UserRound className="h-4 w-4" aria-hidden />
+              Account
+            </Link>
             <button
               onClick={signOut}
               className="flex w-full items-center gap-2 rounded-xl px-3 py-2 font-grotesk text-sm text-ink-soft transition hover:bg-paper-deep hover:text-ink"

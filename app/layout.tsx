@@ -1,16 +1,37 @@
 import type { Metadata } from "next";
+import { Fraunces, Space_Grotesk, Inter } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { LiquidLight } from "@/components/fx/LiquidLight";
 import { Cursor } from "@/components/fx/Cursor";
+import { RouteProgress } from "@/components/fx/RouteProgress";
+import { Analytics } from "@/components/Analytics";
+
+// Self-hosted via next/font — no external request, no layout shift.
+const display = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+  axes: ["opsz"],
+});
+const grotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-grotesk",
+  display: "swap",
+});
+const sans = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "BookVerse AI - Step inside a book",
+    default: "BookVerse AI — Step inside any book",
     template: "%s",
   },
   description:
@@ -26,14 +47,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "BookVerse AI",
-    title: "BookVerse AI - Step inside any book",
+    title: "BookVerse AI — Step inside any book",
     description:
       "Living summaries, timelines, mind maps and an AI tutor, painted in light.",
     url: siteUrl,
   },
   twitter: {
     card: "summary_large_image",
-    title: "BookVerse AI - Step inside any book",
+    title: "BookVerse AI — Step inside any book",
     description:
       "Living summaries, timelines, mind maps and an AI tutor, painted in light.",
   },
@@ -45,23 +66,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..800&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html
+      lang="en"
+      className={`${display.variable} ${grotesk.variable} ${sans.variable}`}
+    >
       <body className="min-h-screen">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:text-paper"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-body-sm focus:text-paper"
         >
           Skip to content
         </a>
@@ -69,12 +81,14 @@ export default function RootLayout({
         <LiquidLight />
         <div className="grain" />
         <Cursor />
+        <RouteProgress />
 
         <Nav />
         <main id="main" className="relative z-10">
           {children}
         </main>
         <Footer />
+        <Analytics />
       </body>
     </html>
   );

@@ -1,4 +1,4 @@
-import type { Book } from "@/lib/types";
+import type { Book } from "../types";
 import type { ChatMessage } from "./types";
 
 // Builds a grounding system prompt so the tutor answers from the book only.
@@ -51,14 +51,13 @@ export function buildGenerationPrompt(title: string): string {
     `  "timeline": { "label": string, "title": string, "detail": string }[5],`,
     `  "characters": { "name": string, "role": string, "description": string, "connections": string[] }[],`,
     `  "mindMap": { "id": string, "label": string, "parent": string | null }[],`,
-    `  "sketches": { "caption": string, "emoji": string, "tone": string }[3],`,
+    `  "sketches": { "caption": string, "emoji": string }[3],`,
     `  "qa": { "q": string, "a": string }[3]`,
     `}`,
     ``,
     `Rules:`,
     `- "characters" must be [] for non-fiction, and 3-5 items for fiction.`,
     `- "mindMap" must have exactly one node with "parent": null (the root), and 4-8 child nodes referencing valid parent ids.`,
-    `- "tone" is a Tailwind gradient fragment like "from-plum-500 to-gold-500".`,
     `- "emoji" is a single relevant emoji.`,
     `- Write summaries transformatively; never reproduce copyrighted text verbatim.`,
     `- Keep it accurate to the real book if known; if unknown, produce a plausible, clearly-general guide.`,

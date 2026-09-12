@@ -38,6 +38,28 @@ export class OpenAICompatProvider implements AIProvider {
     return Boolean(this.apiKey);
   }
 
+  // Model ids the account can actually use. Used by getStatus() to verify the
+  // configured model exists (so the UI badge tells the truth). Returns [] if the
+  // provider has no /models endpoint or the call fails — callers treat [] as
+  // "could not verify", not "no models".
+  async models(): Promise<string[]> {
+    if (!this.apiKey) return [];
+    try {
+      const res = await fetch(`${this.base}/models`, {
+        headers: this.headers(),
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const list = Array.isArray(data?.data) ? data.data : [];
+      return list
+        .map((m: { id?: string }) => m?.id)
+        .filter((id: unknown): id is string => typeof id === "string");
+    } catch {
+      return [];
+    }
+  }
+
   private headers(): Record<string, string> {
     return {
       "Content-Type": "application/json",

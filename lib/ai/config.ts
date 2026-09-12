@@ -24,7 +24,10 @@ export const cloudPresets = {
   groq: {
     baseUrl: "https://api.groq.com/openai/v1",
     keyEnv: "GROQ_API_KEY",
-    defaultModel: "llama-3.3-70b-versatile",
+    // Verified live on Groq (2026-09). Supports JSON mode. Older Llama 3.x
+    // "versatile"/"instant" models were decommissioned — override with GROQ_MODEL
+    // if your account has a different set (see GET /openai/v1/models).
+    defaultModel: "openai/gpt-oss-120b",
   },
   gemini: {
     // Gemini's OpenAI-compatibility endpoint.

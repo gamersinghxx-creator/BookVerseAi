@@ -1,4 +1,4 @@
-import type { Book } from "@/lib/types";
+import type { Book } from "../types";
 
 // Offline fallbacks used when no live AI runtime (Ollama) is reachable, so the
 // features still work in a demo. These mirror what a real model would return.
@@ -19,12 +19,6 @@ export function mockTutorAnswer(book: Book, question: string): string {
   return `That's a good question about "${book.title}". I don't have that detail in my notes for this book, but I can help with its main ideas, key lessons, themes, or characters.`;
 }
 
-const TONES = [
-  "from-plum-500 to-gold-500",
-  "from-gold-500 to-ink-800",
-  "from-plum-600 to-ink-800",
-];
-
 // A templated, clearly-generic Book for when generation runs without a model.
 export function mockGeneratedBook(title: string): Omit<Book, "slug"> {
   const t = title.trim();
@@ -34,7 +28,7 @@ export function mockGeneratedBook(title: string): Omit<Book, "slug"> {
     year: "n/a",
     category: "non-fiction",
     tags: ["Generated", "Preview", "Study guide"],
-    cover: { emoji: "📘", tone: TONES[0] },
+    cover: { emoji: "📘" },
     tagline: `An AI study guide for "${t}".`,
     readingTime: "8 min read",
     rating: 4.2,
@@ -73,9 +67,9 @@ export function mockGeneratedBook(title: string): Omit<Book, "slug"> {
       { id: "context", label: "Context", parent: "root" },
     ],
     sketches: [
-      { caption: "Concept sketch one", emoji: "🖼️", tone: TONES[0] },
-      { caption: "Concept sketch two", emoji: "✏️", tone: TONES[1] },
-      { caption: "Concept sketch three", emoji: "🎨", tone: TONES[2] },
+      { caption: "Concept sketch one", emoji: "🖼️" },
+      { caption: "Concept sketch two", emoji: "✏️" },
+      { caption: "Concept sketch three", emoji: "🎨" },
     ],
     qa: [
       { q: "What is this book about?", a: `Connect a live model to get a specific answer about "${t}". This preview shows the format.` },

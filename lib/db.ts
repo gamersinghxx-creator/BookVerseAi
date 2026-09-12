@@ -87,16 +87,11 @@ export async function dbUpsert(book: Book, source: string): Promise<boolean> {
   return true;
 }
 
-// All books, seeds first, then newest generated.
-export async function dbAll(): Promise<Book[]> {
+export async function dbDelete(slug: string): Promise<boolean> {
   const d = await getDb();
-  if (!d) return [];
-  const rows = d
-    .prepare(
-      "SELECT data FROM books ORDER BY (source='seed') DESC, created_at DESC"
-    )
-    .all() as { data: string }[];
-  return rows.map((r) => JSON.parse(r.data) as Book);
+  if (!d) return false;
+  const r = d.prepare("DELETE FROM books WHERE slug = ? AND source != 'seed'").run(slug);
+  return r.changes > 0;
 }
 
 // Generated books only, newest first.
